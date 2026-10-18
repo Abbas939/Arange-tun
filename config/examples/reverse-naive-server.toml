@@ -1,0 +1,13 @@
+[server]
+bind_addr = "127.0.0.1:19090"
+transport = "tcp"
+token = "REPLACE_WITH_THE_SAME_RANDOM_64_CHARACTER_TOKEN_ON_BOTH_SERVERS"
+ports = ["127.0.0.1:8080=127.0.0.1:80"]
+
+[server.naive]
+binary = "/usr/local/lib/arange-tun/sing-box"
+listen = "0.0.0.0:443"
+username = "REPLACE_WITH_PROXY_USERNAME"
+password = "REPLACE_WITH_RANDOM_PROXY_PASSWORD"
+certificate = "/etc/arange-tun/tunnel.crt"
+key = "/etc/arange-tun/tunnel.key"

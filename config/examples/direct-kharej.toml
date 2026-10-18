@@ -1,0 +1,6 @@
+[direct]
+role = "kharej"
+addr = "0.0.0.0:8443"
+token = "REPLACE_WITH_THE_SAME_RANDOM_64_CHARACTER_TOKEN_ON_BOTH_SERVERS"
+transport = "stealth"
+max_connections = 256

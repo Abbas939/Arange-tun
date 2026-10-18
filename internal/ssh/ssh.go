@@ -4,19 +4,23 @@
 // a panel outbound pointed at the SOCKS5 leaves by the server's IP. It keeps the
 // SSH connection up, reconnecting with backoff if it drops.
 //
-// Security here is deliberately light (password auth, host key not pinned): this
-// is a convenience egress, not a hardened channel — the SSH session is still
-// encrypted, but the server is trusted on first use.
+// Server identity is checked against an explicit SHA256 pin or known_hosts.
 package ssh
 
 import (
 	"context"
+	"crypto/subtle"
+	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/mahdi-byte64/arange-tun/config"
 	"github.com/mahdi-byte64/arange-tun/internal/metrics"
@@ -43,6 +47,10 @@ func RunClient(ctx context.Context, sc *config.SSHConfig, logger *logrus.Logger)
 	if bind == "" {
 		bind = "127.0.0.1"
 	}
+	if ip := net.ParseIP(bind); ip == nil || !ip.IsLoopback() {
+		logger.Error("ssh: the unauthenticated SOCKS listener must use a loopback IP")
+		return
+	}
 	if sc.SocksPort <= 0 {
 		logger.Fatalf("ssh: a SOCKS5 port is required")
 		return
@@ -61,10 +69,29 @@ func RunClient(ctx context.Context, sc *config.SSHConfig, logger *logrus.Logger)
 	}()
 
 	server := net.JoinHostPort(host, strconv.Itoa(port))
+	verify, err := hostKeyCallback(sc)
+	if err != nil {
+		logger.Errorf("ssh: %v", err)
+		return
+	}
+	auth := []ssh.AuthMethod{ssh.Password(sc.Password)}
+	if sc.IdentityFile != "" {
+		pem, err := os.ReadFile(sc.IdentityFile)
+		if err != nil {
+			logger.Errorf("ssh: cannot read identity file: %v", err)
+			return
+		}
+		key, err := ssh.ParsePrivateKey(pem)
+		if err != nil {
+			logger.Errorf("ssh: cannot parse identity file: %v", err)
+			return
+		}
+		auth = []ssh.AuthMethod{ssh.PublicKeys(key)}
+	}
 	cfg := &ssh.ClientConfig{
 		User:            sc.User,
-		Auth:            []ssh.AuthMethod{ssh.Password(sc.Password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // trust-on-first-use; see package doc
+		Auth:            auth,
+		HostKeyCallback: verify,
 		Timeout:         15 * time.Second,
 	}
 
@@ -76,6 +103,20 @@ func RunClient(ctx context.Context, sc *config.SSHConfig, logger *logrus.Logger)
 // backing off between attempts. Each successful connection serves until it drops
 // or ctx ends.
 func runWithReconnect(ctx context.Context, server string, cfg *ssh.ClientConfig, ln net.Listener, logger *logrus.Logger) {
+	// Exactly one accept loop survives every reconnect. A request snapshots the
+	// current client; old accept loops must never steal work from a new session.
+	var mu sync.RWMutex
+	var current *ssh.Client
+	go socksproxy.Serve(ctx, ln, func(dctx context.Context, network, address string) (net.Conn, error) {
+		mu.RLock()
+		c := current
+		mu.RUnlock()
+		if c == nil {
+			return nil, fmt.Errorf("SSH connection is not ready")
+		}
+		return c.DialContext(dctx, network, address)
+	}, logger)
+	defer func() { mu.Lock(); current = nil; mu.Unlock() }()
 	backoff := time.Second
 	for {
 		if ctx.Err() != nil {
@@ -99,16 +140,15 @@ func runWithReconnect(ctx context.Context, server string, cfg *ssh.ClientConfig,
 
 		// A SOCKS dial opens a direct-tcpip channel from the SSH server to the
 		// target, so the traffic egresses at the server.
-		dialThrough := func(dctx context.Context, network, address string) (net.Conn, error) {
-			return client.Dial(network, address)
-		}
-
-		serveCtx, cancel := context.WithCancel(ctx)
-		go socksproxy.Serve(serveCtx, ln, dialThrough, logger)
+		mu.Lock()
+		current = client
+		mu.Unlock()
 
 		// Block until the connection drops or ctx ends.
 		waitClosed(ctx, client)
-		cancel()
+		mu.Lock()
+		current = nil
+		mu.Unlock()
 		client.Close()
 		metrics.ClearPeer()
 		if ctx.Err() != nil {
@@ -124,11 +164,15 @@ func dial(ctx context.Context, server string, cfg *ssh.ClientConfig) (*ssh.Clien
 	if err != nil {
 		return nil, err
 	}
+	stop := context.AfterFunc(ctx, func() { conn.Close() })
+	defer stop()
+	_ = conn.SetDeadline(time.Now().Add(cfg.Timeout))
 	c, chans, reqs, err := ssh.NewClientConn(conn, server, cfg)
 	if err != nil {
 		conn.Close()
 		return nil, err
 	}
+	_ = conn.SetDeadline(time.Time{})
 	return ssh.NewClient(c, chans, reqs), nil
 }
 
@@ -149,11 +193,49 @@ func waitClosed(ctx context.Context, client *ssh.Client) {
 		case <-closed:
 			return
 		case <-ticker.C:
-			if _, _, err := client.SendRequest("keepalive@arange-tun", true, nil); err != nil {
+			probe := make(chan error, 1)
+			go func() { _, _, err := client.SendRequest("keepalive@arange-tun", true, nil); probe <- err }()
+			timer := time.NewTimer(10 * time.Second)
+			select {
+			case err := <-probe:
+				timer.Stop()
+				if err != nil {
+					return
+				}
+			case <-timer.C:
+				client.Close()
+				return
+			case <-ctx.Done():
+				timer.Stop()
+				client.Close()
 				return
 			}
 		}
 	}
+}
+
+func hostKeyCallback(sc *config.SSHConfig) (ssh.HostKeyCallback, error) {
+	if sc.HostKeySHA256 != "" {
+		return func(host string, remote net.Addr, key ssh.PublicKey) error {
+			if subtle.ConstantTimeCompare([]byte(ssh.FingerprintSHA256(key)), []byte(sc.HostKeySHA256)) != 1 {
+				return fmt.Errorf("SSH host key mismatch for %s", host)
+			}
+			return nil
+		}, nil
+	}
+	path := sc.KnownHosts
+	if path == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+		path = filepath.Join(home, ".ssh", "known_hosts")
+	}
+	cb, err := knownhosts.New(path)
+	if err != nil {
+		return nil, fmt.Errorf("configure host_key_sha256 or a trusted known_hosts file: %w", err)
+	}
+	return cb, nil
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) bool {

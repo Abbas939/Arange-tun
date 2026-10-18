@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"github.com/mahdi-byte64/arange-tun/internal/tunnel/naive"
 	"net/http"
 	_ "net/http/pprof"
 	"time"
@@ -45,6 +46,21 @@ func NewServer(cfg *config.ServerConfig, parentCtx context.Context) *Server {
 }
 
 func (s *Server) Start() {
+	if s.config.Naive.Enabled() || s.config.Xray.Enabled() {
+		var helper *naive.Helper
+		var err error
+		if s.config.Xray.Enabled() {
+			helper, err = naive.StartXrayServer(s.ctx, s.config, s.logger)
+		} else {
+			helper, err = naive.StartServer(s.ctx, s.config, s.logger)
+		}
+		if err != nil {
+			s.logger.Errorf("managed transport helper could not start; tunnel remains stopped: %v", err)
+			<-s.ctx.Done()
+			return
+		}
+		defer helper.Close()
+	}
 	// The sniffer/monitor page has no authentication; web_bind pins it to a
 	// chosen address (127.0.0.1 recommended), applied before any transport
 	// starts its sniffer.

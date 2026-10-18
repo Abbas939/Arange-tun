@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"github.com/mahdi-byte64/arange-tun/internal/tunnel/naive"
 	"net"
 	"time"
 
@@ -91,8 +92,29 @@ func (c *Client) Start() {
 	// said out loud rather than assumed.
 	outbound, err := buildOutbound(c.config)
 	if err != nil {
-		c.logger.Errorf("ignoring the configured outbound settings and dialling directly: %v", err)
-		outbound = nil
+		c.logger.Errorf("configured outbound is invalid; refusing a direct fallback: %v", err)
+		return
+	}
+	if c.config.Naive.Enabled() || c.config.Xray.Enabled() {
+		var helper *naive.Helper
+		var err error
+		if c.config.Xray.Enabled() {
+			helper, err = naive.StartXrayClient(c.ctx, c.config, c.logger)
+		} else {
+			helper, err = naive.StartClient(c.ctx, c.config, c.logger)
+		}
+		if err != nil {
+			c.logger.Errorf("managed transport helper could not start; tunnel remains stopped: %v", err)
+			<-c.ctx.Done()
+			return
+		}
+		defer helper.Close()
+		proxy, err := network.ParseProxy(helper.ProxyURL())
+		if err != nil {
+			c.logger.Error("invalid managed transport proxy")
+			return
+		}
+		outbound = &network.Outbound{Proxy: proxy}
 	}
 	if outbound.IsSet() {
 		c.logger.Infof("reaching the tunnel server %s", outbound)

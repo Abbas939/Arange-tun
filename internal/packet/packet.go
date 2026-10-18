@@ -1,3 +1,5 @@
+//go:build !nopcap
+
 // Package packet is the Arange-tun adapter around the vendored paqet engine (in
 // ./engine, MIT-licensed — see engine/LICENSE). paqet is a raw-packet proxy: it
 // captures and injects crafted TCP packets with libpcap, carrying KCP+smux

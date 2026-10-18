@@ -121,7 +121,7 @@ func serverObfsWrap(conn net.Conn, mode, token string, tlsCfg *tls.Config) (net.
 	case "noise":
 		return network.NoiseServerConn(conn, token, handshakeTimeout)
 	case "tls":
-		return network.TLSServerConn(conn, tlsCfg, handshakeTimeout)
+		return network.TLSServerConn(conn, tlsCfg, handshakeTimeout, token)
 	}
 	return conn, nil
 }
@@ -137,7 +137,7 @@ func clientObfsWrap(conn net.Conn, cfg *config.ClientConfig) (net.Conn, error) {
 		if sni == "" {
 			sni = network.SNIFromAddr(cfg.RemoteAddr)
 		}
-		return network.TLSClientConn(conn, sni, handshakeTimeout)
+		return network.TLSClientConn(conn, sni, handshakeTimeout, cfg.Token)
 	}
 	return conn, nil
 }

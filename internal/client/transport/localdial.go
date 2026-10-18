@@ -61,7 +61,7 @@ func localDialMessage(addr string, err error) string {
 	var b strings.Builder
 
 	switch {
-	case errors.Is(err, syscall.ECONNREFUSED):
+	case errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.Errno(10061)):
 		fmt.Fprintf(&b, "nothing is listening on %s on THIS server.\n", addr)
 		b.WriteString("  The tunnel delivered the connection correctly — the problem is the\n")
 		b.WriteString("  service being forwarded to. Either it is not running, or it is bound\n")

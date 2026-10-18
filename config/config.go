@@ -226,23 +226,25 @@ type PckConfig struct {
 
 // ServerConfig represents the configuration for the server.
 type ServerConfig struct {
-	BindAddr         string        `toml:"bind_addr"`
-	Transport        TransportType `toml:"transport"`
-	Token            string        `toml:"token"`
-	Nodelay          bool          `toml:"nodelay"`
-	Keepalive        int           `toml:"keepalive_period"`
-	ChannelSize      int           `toml:"channel_size"`
-	LogLevel         string        `toml:"log_level"`
-	LogFormat        string        `toml:"log_format"` // "" (text) or "json"
-	Ports            []string      `toml:"ports"`
-	PPROF            bool          `toml:"pprof"`
-	MuxSession       int           `toml:"mux_session"`
-	MuxVersion       int           `toml:"mux_version"`
-	MaxFrameSize     int           `toml:"mux_framesize"`
-	MaxReceiveBuffer int           `toml:"mux_recievebuffer"`
-	MaxStreamBuffer  int           `toml:"mux_streambuffer"`
-	Sniffer          bool          `toml:"sniffer"`
-	WebPort          int           `toml:"web_port"`
+	Naive            NaiveServerConfig `toml:"naive"`
+	Xray             XrayServerConfig  `toml:"xray"`
+	BindAddr         string            `toml:"bind_addr"`
+	Transport        TransportType     `toml:"transport"`
+	Token            string            `toml:"token"`
+	Nodelay          bool              `toml:"nodelay"`
+	Keepalive        int               `toml:"keepalive_period"`
+	ChannelSize      int               `toml:"channel_size"`
+	LogLevel         string            `toml:"log_level"`
+	LogFormat        string            `toml:"log_format"` // "" (text) or "json"
+	Ports            []string          `toml:"ports"`
+	PPROF            bool              `toml:"pprof"`
+	MuxSession       int               `toml:"mux_session"`
+	MuxVersion       int               `toml:"mux_version"`
+	MaxFrameSize     int               `toml:"mux_framesize"`
+	MaxReceiveBuffer int               `toml:"mux_recievebuffer"`
+	MaxStreamBuffer  int               `toml:"mux_streambuffer"`
+	Sniffer          bool              `toml:"sniffer"`
+	WebPort          int               `toml:"web_port"`
 	// WebBind is the address the sniffer/monitor page listens on. It has no
 	// authentication, so the safe value is 127.0.0.1 (reach it over SSH);
 	// empty keeps the historical all-interfaces bind. See internal/web.
@@ -314,7 +316,9 @@ type ServerConfig struct {
 
 // ClientConfig represents the configuration for the client.
 type ClientConfig struct {
-	RemoteAddr string `toml:"remote_addr"`
+	Naive      NaiveClientConfig `toml:"naive"`
+	Xray       XrayClientConfig  `toml:"xray"`
+	RemoteAddr string            `toml:"remote_addr"`
 	// FallbackAddrs are additional server addresses tried in order whenever the
 	// primary cannot be reached (a filtered IP, a blocked port, a CDN edge).
 	FallbackAddrs    []string      `toml:"fallback_addrs"`
@@ -547,10 +551,13 @@ type PacketConfig struct {
 type SSHConfig struct {
 	Role string `toml:"role"` // only "client"
 
-	Host     string `toml:"host"`     // server IP or domain
-	Port     int    `toml:"port"`     // SSH port (default 22)
-	User     string `toml:"user"`     // SSH username
-	Password string `toml:"password"` // SSH password
+	Host          string `toml:"host"`            // server IP or domain
+	Port          int    `toml:"port"`            // SSH port (default 22)
+	User          string `toml:"user"`            // SSH username
+	Password      string `toml:"password"`        // SSH password
+	HostKeySHA256 string `toml:"host_key_sha256"` // trusted SHA256 fingerprint, obtained out of band
+	KnownHosts    string `toml:"known_hosts"`     // defaults to ~/.ssh/known_hosts when no fingerprint is set
+	IdentityFile  string `toml:"identity_file"`   // optional unencrypted private key, instead of password
 
 	SocksBind string `toml:"socks_bind"` // e.g. "127.0.0.1"
 	SocksPort int    `toml:"socks_port"` // local SOCKS5 port
@@ -625,6 +632,7 @@ type HedioumConfig struct {
 
 // Config represents the complete configuration, including both server and client settings.
 type Config struct {
+	Direct    DirectConfig    `toml:"direct"`
 	Server    ServerConfig    `toml:"server"`
 	Client    ClientConfig    `toml:"client"`
 	WireGuard WireGuardConfig `toml:"wireguard"`

@@ -38,9 +38,29 @@ func main() {
 	webPanel := flag.Bool("webui", false, "run the web panel (used by the arange-tun-webui service)")
 	monitorMode := flag.Bool("monitor", false, "run the watchdog, Telegram bot and alerts (used by the arange-tun-monitor service)")
 	proxyMode := flag.Bool("proxy", false, "run the built-in SOCKS5/HTTP proxy (used by the arange-tun-proxy service)")
+	importConfig := flag.String("import-config", "", "import a validated advanced TOML configuration")
+	tunnelName := flag.String("name", "", "name for an imported tunnel")
+	replaceConfig := flag.Bool("replace-config", false, "replace an existing imported tunnel after a snapshot")
+	applyUpdate := flag.Bool("apply-update", false, "run the isolated update worker")
 	flag.Parse()
 
 	switch {
+	case *importConfig != "":
+		data, err := os.ReadFile(*importConfig)
+		if err == nil {
+			err = manage.ImportAdvanced(*tunnelName, string(data), *replaceConfig)
+		}
+		if err != nil {
+			logger.Error(err)
+			os.Exit(1)
+		}
+		return
+	case *applyUpdate:
+		if err := manage.RunUpdateWorker(); err != nil {
+			logger.Error(err)
+			os.Exit(1)
+		}
+		return
 	case *showVersion:
 		fmt.Println(app.Version)
 		return

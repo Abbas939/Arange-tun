@@ -1,6 +1,12 @@
+# RASTA TUNNEL
+
+راستا تانل — فورک توسعه‌یافتهٔ Arange-tun با حفظ مجوز و نام نویسندگان اصلی.
+
 <div dir="rtl">
 
 # آرنج‌تان 🎒
+
+> این فورک در مرحلهٔ توسعه است. پیش از ارتقا، [راهنمای فارسی اصلاحات و روش‌های جدید](docs/MODERN-TRANSPORTS-FA.md) را بخوانید. هر دو سمت باید همین فورک را اجرا کنند. انتشار عملیاتی به عبور آزمون‌های لینوکسی نیاز دارد.
 
 **هستهٔ تونل معکوس** · Go · AGPL-3.0 · لینوکس amd64/arm64 · باینری واحد
 
@@ -54,7 +60,7 @@ end user ──▶ forwarded port (Iran server) ──[ one transport ]──▶
 </div>
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/mahdi-byte64/Arange-tun/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Abbas939/Arange-tun/main/install.sh)
 ```
 
 <div dir="rtl">
@@ -390,7 +396,7 @@ connection pooling:
 
 ## ساخت از سورس
 
-به **Go 1.24+**، یک **کامپایلر C** و **هدرهای توسعهٔ libpcap** نیاز دارد
+به **Go 1.27.2+**، یک **کامپایلر C** و **هدرهای توسعهٔ libpcap** نیاز دارد
 (`libpcap-dev` در دبیان/اوبونتو، `libpcap-devel` در RHEL/فدورا). باینری با cgo
 ساخته می‌شود چون تونل **Packet** یک موتور پکت خام (libpcap) درون خود دارد؛ بقیهٔ
 کد خالص‌Go است. اسکریپت نصب این‌ها را خودکار آماده می‌کند. از داخل یک کلون از رپو:
@@ -457,3 +463,6 @@ go test ./...                            # اجرای تست‌ها (تست‌ه
 گیت‌هاب: **[mahdi-byte64](https://github.com/mahdi-byte64)** — روی ریپازیتوری issue باز کن.
 
 </div>
+
+Based on BackPack by Amin Mohammadi (AminMGMT)
+https://github.com/AminMGMT/BackPack

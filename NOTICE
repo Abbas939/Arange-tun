@@ -53,3 +53,6 @@ preset.go, and its KCP-family gating in setup/edit/create) is derived from
 Backpack by Amin Mohammadi (AminMGMT), under the same AGPL-3.0 licence and with
 attribution; the preset's tuning numbers were re-fitted to this fork's own
 Balance/Turbo/Aggressive baselines.
+
+Based on BackPack by Amin Mohammadi (AminMGMT)
+https://github.com/AminMGMT/BackPack

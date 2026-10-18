@@ -13,3 +13,5 @@
 .DS_Store
 *.log
 *.swp
+__pycache__/
+*.pyc

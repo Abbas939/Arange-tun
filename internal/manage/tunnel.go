@@ -34,6 +34,20 @@ func List() []Tunnel {
 		name := strings.TrimSuffix(filepath.Base(path), ".toml")
 		t := Tunnel{Name: name, Service: app.ServiceName(name)}
 		switch {
+		case cfg.Direct.Enabled():
+			t.Role = cfg.Direct.ResolvedRole()
+			transport := cfg.Direct.Transport
+			if transport == "" {
+				transport = "stealth"
+			}
+			t.Transport = "direct-" + transport
+			t.Ports = cfg.Direct.Ports
+			if t.Role == "origin" {
+				t.Role = "server"
+			} else {
+				t.Role = "client"
+			}
+			t.Addr = cfg.Direct.Addr
 		case cfg.WireGuard.Role != "":
 			// WireGuard is a VPN egress, not a reverse tunnel. For a client the
 			// address is the WG endpoint it dials; for a server it is the UDP
@@ -79,10 +93,22 @@ func List() []Tunnel {
 			t.Transport = string(cfg.Server.Transport)
 			t.Addr = cfg.Server.BindAddr
 			t.Ports = cfg.Server.Ports
+			if cfg.Server.Naive.Enabled() {
+				t.Transport = "managed-naive"
+			}
+			if cfg.Server.Xray.Enabled() {
+				t.Transport = "managed-" + cfg.Server.Xray.Mode
+			}
 		case cfg.Client.RemoteAddr != "":
 			t.Role = "client"
 			t.Transport = string(cfg.Client.Transport)
 			t.Addr = cfg.Client.RemoteAddr
+			if cfg.Client.Naive.Enabled() {
+				t.Transport = "managed-naive"
+			}
+			if cfg.Client.Xray.Enabled() {
+				t.Transport = "managed-" + cfg.Client.Xray.Mode
+			}
 		default:
 			continue
 		}
@@ -97,6 +123,9 @@ func List() []Tunnel {
 // it through this rather than parsing the TOML themselves.
 func LoadTunnelConfig(name string) (config.Config, error) {
 	var cfg config.Config
+	if !validName(name) {
+		return cfg, fmt.Errorf("invalid tunnel name")
+	}
 	_, err := toml.DecodeFile(app.ConfigPath(name), &cfg)
 	return cfg, err
 }
@@ -104,6 +133,9 @@ func LoadTunnelConfig(name string) (config.Config, error) {
 // Delete removes a tunnel: stops/disables the service, deletes the unit,
 // config, any per-tunnel refresh script, and reloads systemd.
 func Delete(name string) error {
+	if !validName(name) {
+		return fmt.Errorf("invalid tunnel name")
+	}
 	service := app.ServiceName(name)
 	if IsActive(service) || IsEnabled(service) {
 		_ = DisableService(service)
