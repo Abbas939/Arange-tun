@@ -220,6 +220,7 @@ func Serve() error {
 	mux.HandleFunc("/api/stats", srv.requireReadAuth(srv.handleStats))
 	mux.HandleFunc("/api/tunnels", srv.requireReadAuth(srv.handleTunnels))
 	// Tunnel lifecycle — admin-only, since these build and tear down tunnels.
+	mux.HandleFunc("/api/tunnels/import", srv.requireAuth(srv.handleAdvancedImport))
 	mux.HandleFunc("/api/tunnels/create", srv.requireAuth(srv.handleTunnelCreate))
 	mux.HandleFunc("/api/tunnels/get", srv.requireAuth(srv.handleTunnelGet))
 	mux.HandleFunc("/api/tunnels/update", srv.requireAuth(srv.handleTunnelUpdate))
@@ -278,7 +279,7 @@ func Serve() error {
 		// Everything is gzipped on the way out; see compress.go. The panel is
 		// often reached over a slow or filtered link, and its one page is 270 KB
 		// of text.
-		Handler:      gzipMiddleware(mux),
+		Handler:      securePanel(gzipMiddleware(mux)),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
@@ -463,11 +464,10 @@ func (s *server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, map[string]any{"available": available, "summary": summary})
 	case http.MethodPost:
-		updateProgress.start()
-		go func() {
-			err := manage.ApplyUpdate(updateProgress.log)
-			updateProgress.finish(err)
-		}()
+		if err := manage.StartUpdateWorker(); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		writeJSON(w, map[string]string{"status": "started"})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -539,8 +539,7 @@ func (u *updateRecord) snapshot() (bool, []string, string) {
 
 // handleUpdateStatus reports the progress of a running or finished update.
 func (s *server) handleUpdateStatus(w http.ResponseWriter, r *http.Request) {
-	running, lines, errMsg := updateProgress.snapshot()
-	writeJSON(w, map[string]any{"running": running, "log": lines, "error": errMsg})
+	writeJSON(w, manage.ReadUpdateStatus())
 }
 
 // handlePanelPort moves the web panel itself to a new port. The response is

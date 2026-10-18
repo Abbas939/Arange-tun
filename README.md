@@ -1,6 +1,12 @@
+# RASTA TUNNEL
+
+RASTA TUNNEL is an enhanced fork of Arange-tun. Original licenses and author credits are preserved.
+
 <div align="center">
 
 # 🌿 Arange-tun
+
+> Development fork: security fixes and managed direct/reverse carriers. Read the [Persian migration guide](docs/MODERN-TRANSPORTS-FA.md) before upgrading. Both peers must run this fork. Linux CI must pass before a production release.
 
 **A high-performance reverse-tunnel & VPN-egress engine for Iran ⇄ abroad servers**
 
@@ -50,7 +56,7 @@ installs Go and the build prerequisites automatically, compiles the binary, and
 opens the menu.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/mahdi-byte64/Arange-tun/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Abbas939/Arange-tun/main/install.sh)
 ```
 
 Reopen the menu any time with:
@@ -356,7 +362,7 @@ logs and status — every option explains itself. See **[docs/cli-menu.md](docs/
 
 ## 🔧 Build from source
 
-Requires **Go 1.24+**, a **C compiler**, and the **libpcap development headers**
+Requires **Go 1.27.2+**, a **C compiler**, and the **libpcap development headers**
 (`libpcap-dev` on Debian/Ubuntu, `libpcap-devel` on RHEL/Fedora). The binary is built
 with cgo because the **Packet** tunnel embeds a raw-packet (libpcap) engine; the rest of
 the tree is pure Go. The installer sets these up automatically. From a clone:
@@ -397,3 +403,6 @@ vendored **with the author's permission** and with attribution — see
 [`internal/hedioum/engine/NOTICE.md`](internal/hedioum/engine/NOTICE.md).
 
 **GitHub:** [mahdi-byte64](https://github.com/mahdi-byte64) — open an issue on the repository.
+
+Based on BackPack by Amin Mohammadi (AminMGMT)
+https://github.com/AminMGMT/BackPack

@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"github.com/mahdi-byte64/arange-tun/internal/tunnel/direct"
+	"github.com/mahdi-byte64/arange-tun/internal/tunnel/naive"
 	"path/filepath"
 	"strings"
 	"time"
@@ -105,6 +108,31 @@ func Run(configPath string, ctx context.Context) {
 
 // runEngine runs one tunnel until ctx ends.
 func runEngine(cfg *config.Config, ctx context.Context, configPath string, applyTuning bool) {
+	if cfg.Direct.Enabled() {
+		dc := direct.ConfigFromTable(cfg.Direct)
+		startMetrics(ctx, configPath, "direct-"+dc.Transport, dc.Role)
+		if dc.Role == direct.RoleEdge {
+			engine, err := direct.NewEdge(dc, logger)
+			if err != nil {
+				logger.Error(err)
+				return
+			}
+			if err := engine.Run(ctx); err != nil && ctx.Err() == nil {
+				logger.Error(err)
+			}
+		} else {
+			engine, err := direct.NewOrigin(dc, logger)
+			if err != nil {
+				logger.Error(err)
+				return
+			}
+			if err := engine.Run(ctx); err != nil && ctx.Err() == nil {
+				logger.Error(err)
+			}
+		}
+		return
+	}
+
 	// WireGuard is a VPN egress, not a reverse tunnel, so it has its own config
 	// section and engine — a userspace client with a SOCKS5 proxy, or a kernel
 	// exit-node server.
@@ -268,7 +296,35 @@ func loadConfig(configPath string) (*config.Config, error) {
 	if _, err := toml.DecodeFile(configPath, &cfg); err != nil {
 		return &cfg, err
 	}
+	if err := validateEngine(&cfg); err != nil {
+		return &cfg, err
+	}
 	return &cfg, nil
+}
+
+func validateEngine(cfg *config.Config) error {
+	roles := 0
+	for _, active := range []bool{cfg.Direct.Enabled(), cfg.Server.BindAddr != "", cfg.Client.RemoteAddr != "", cfg.SSH.Role != "", cfg.Packet.Role != "", cfg.WireGuard.Role != "", cfg.Hedioum.Role != ""} {
+		if active {
+			roles++
+		}
+	}
+	if roles > 1 {
+		return fmt.Errorf("configure exactly one tunnel engine and role per file")
+	}
+	if cfg.Direct.Enabled() {
+		if cfg.Server.BindAddr != "" || cfg.Client.RemoteAddr != "" || cfg.SSH.Role != "" || cfg.Packet.Role != "" || cfg.WireGuard.Role != "" || cfg.Hedioum.Role != "" {
+			return fmt.Errorf("direct requires its own configuration file")
+		}
+		dc := direct.ConfigFromTable(cfg.Direct)
+		if err := dc.Validate(); err != nil {
+			return err
+		}
+	}
+	if err := naive.Validate(cfg); err != nil {
+		return err
+	}
+	return naive.ValidateXray(cfg)
 }
 
 // reportZeroCopy says, periodically and in the tunnel's own journal, whether

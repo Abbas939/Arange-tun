@@ -27,6 +27,9 @@ func TunnelForEdit(name string) (TunnelRequest, error) {
 	if err != nil {
 		return TunnelRequest{}, err
 	}
+	if cfg.Direct.Enabled() || cfg.Server.Naive.Enabled() || cfg.Client.Naive.Enabled() || cfg.Server.Xray.Enabled() || cfg.Client.Xray.Enabled() {
+		return TunnelRequest{}, fmt.Errorf("edit this tunnel with the advanced configuration importer; the basic form cannot preserve its fields")
+	}
 	req := TunnelRequest{Name: name}
 
 	switch {
@@ -204,6 +207,9 @@ func TunnelForEdit(name string) (TunnelRequest, error) {
 // exists: same validation and building, but it requires the tunnel to be there
 // rather than refusing because it is.
 func UpdateTunnel(req TunnelRequest) (CreateResult, error) {
+	if cfg, err := LoadTunnelConfig(strings.TrimSpace(req.Name)); err == nil && (cfg.Direct.Enabled() || cfg.Server.Naive.Enabled() || cfg.Client.Naive.Enabled() || cfg.Server.Xray.Enabled() || cfg.Client.Xray.Enabled()) {
+		return CreateResult{}, fmt.Errorf("use the advanced importer to preserve managed tunnel settings")
+	}
 	name := strings.TrimSpace(req.Name)
 	if !fileExists(app.ConfigPath(name)) {
 		return CreateResult{}, fmt.Errorf("no tunnel named %q to edit", name)

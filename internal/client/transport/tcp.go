@@ -114,6 +114,7 @@ func (c *TcpTransport) Restart() {
 	defer c.restartMutex.Unlock()
 
 	c.logger.Info("restarting client...")
+	metrics.ClearPeer()
 
 	// for removing timeout logs
 	level := c.logger.Level
@@ -245,6 +246,7 @@ func (c *TcpTransport) channelDialer() {
 				// connections poolMaintainer starts below already have it.
 				c.poolNonce.Set(nonce)
 				c.state.SetConn(tunnelTCPConn)
+				metrics.ReportPeer(c.config.Endpoints.Current())
 				c.logger.Info("control channel established successfully")
 
 				c.config.TunnelStatus = "Connected (TCP)"

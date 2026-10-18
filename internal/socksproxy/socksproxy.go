@@ -7,8 +7,10 @@
 package socksproxy
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -27,9 +29,14 @@ type DialFunc func(ctx context.Context, network, address string) (net.Conn, erro
 // Serve runs the SOCKS5 proxy on ln until ctx ends: no authentication, CONNECT
 // only, every target dialed through dial.
 func Serve(ctx context.Context, ln net.Listener, dial DialFunc, logger *logrus.Logger) {
+	stop := context.AfterFunc(ctx, func() { ln.Close() })
+	defer stop()
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
 			select {
 			case <-ctx.Done():
 				return
@@ -52,6 +59,10 @@ func handle(ctx context.Context, client net.Conn, dial DialFunc, logger *logrus.
 	}
 	methods := make([]byte, int(head[1]))
 	if _, err := io.ReadFull(client, methods); err != nil {
+		return
+	}
+	if !bytes.Contains(methods, []byte{0x00}) {
+		_, _ = client.Write([]byte{0x05, 0xff})
 		return
 	}
 	if _, err := client.Write([]byte{0x05, 0x00}); err != nil {
@@ -90,6 +101,8 @@ func handle(ctx context.Context, client net.Conn, dial DialFunc, logger *logrus.
 		return
 	}
 	defer remote.Close()
+	stop := context.AfterFunc(ctx, func() { client.Close(); remote.Close() })
+	defer stop()
 
 	if err := writeReply(client, 0x00); err != nil { // success
 		return

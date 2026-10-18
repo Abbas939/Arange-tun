@@ -107,7 +107,11 @@ func buildFromSource(logf func(string)) error {
 	tgz := filepath.Join(app.InstallDir, "source-update.tar.gz")
 	defer os.Remove(tgz)
 	logf("Downloading source from GitHub...")
-	if err := downloadSource(tgz, logf); err != nil {
+	sha, err := latestCommitSHA()
+	if err != nil {
+		return fmt.Errorf("resolve immutable source commit: %w", err)
+	}
+	if err := downloadSourceCommit(tgz, sha, logf); err != nil {
 		return fmt.Errorf("could not download the source: %w", err)
 	}
 	logf("Extracting source...")
@@ -179,9 +183,7 @@ func buildFromSource(logf func(string)) error {
 	// Record the commit just built, so the next check can tell it apart from a
 	// later push. Best-effort: a missing record only means the next check offers
 	// a rebuild it did not strictly need.
-	if sha, err := latestCommitSHA(); err == nil {
-		writeInstalledCommit(sha)
-	}
+	writeInstalledCommit(sha)
 	return nil
 }
 
@@ -248,7 +250,18 @@ func goBinary() (string, error) {
 // downloadSource fetches the main-branch source tarball into dest, trying the
 // direct path and then the tunnel relay.
 func downloadSource(dest string, logf func(string)) error {
-	url := fmt.Sprintf("%s/archive/refs/heads/main.tar.gz", repoURL())
+	sha, err := latestCommitSHA()
+	if err != nil {
+		return err
+	}
+	return downloadSourceCommit(dest, sha, logf)
+}
+
+func downloadSourceCommit(dest, sha string, logf func(string)) error {
+	if !regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(sha) {
+		return fmt.Errorf("invalid source commit")
+	}
+	url := fmt.Sprintf("%s/archive/%s.tar.gz", repoURL(), sha)
 	var lastErr error = fmt.Errorf("no source reachable")
 	for _, s := range sources(3 * time.Minute) {
 		logf("Trying " + s.name + "...")

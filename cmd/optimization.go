@@ -1,3 +1,5 @@
+//go:build !windows
+
 package cmd
 
 import (
@@ -47,13 +49,12 @@ func ApplyTCPTuning() {
 
 		// Commands for optimizing TCP parameters
 		commands := [][]string{
-			{"sysctl", "-w", "net.ipv4.ip_local_port_range=1024 65535"}, // Increase ephemeral ports
-			{"sysctl", "-w", "net.ipv4.tcp_tw_reuse=1"},                 // Reuse TIME_WAIT sockets
-			{"sysctl", "-w", "net.ipv4.tcp_fin_timeout=15"},             // Reduce TCP FIN timeout
-			{"sysctl", "-w", "net.core.somaxconn=65536"},                // Increase max queue length of incoming connections
-			{"sysctl", "-w", "net.ipv4.tcp_max_syn_backlog=20480"},      // Increase SYN request backlog
-			{"sysctl", "-w", "net.ipv4.tcp_window_scaling=1"},           // Enable TCP window scaling
-			{"sysctl", "-w", "net.ipv4.tcp_fastopen=3"},                 // Enable TCP Fast Open
+			{"sysctl", "-w", "net.ipv4.tcp_tw_reuse=1"},            // Reuse TIME_WAIT sockets
+			{"sysctl", "-w", "net.ipv4.tcp_fin_timeout=15"},        // Reduce TCP FIN timeout
+			{"sysctl", "-w", "net.core.somaxconn=65536"},           // Increase max queue length of incoming connections
+			{"sysctl", "-w", "net.ipv4.tcp_max_syn_backlog=20480"}, // Increase SYN request backlog
+			{"sysctl", "-w", "net.ipv4.tcp_window_scaling=1"},      // Enable TCP window scaling
+			{"sysctl", "-w", "net.ipv4.tcp_fastopen=3"},            // Enable TCP Fast Open
 			// {"sysctl", "-w", "net.ipv4.tcp_rmem = 16384 1048576 33554432"}, // Maximum of 1MB of TCP read buffer memory
 			// {"sysctl", "-w", "net.ipv4.tcp_wmem = 16384 1048576 33554432"}, // Maximum of 1MB TCP write buffer memory
 			{"sysctl", "-w", "net.ipv4.tcp_notsent_lowat=32768"}, // Do not allow more than 4096 bytes of unsent data in buffer

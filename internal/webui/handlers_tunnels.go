@@ -153,13 +153,14 @@ func (s *server) handleSSHClientCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxTunnelBody)
 	var req struct {
-		Name      string `json:"name"`
-		Host      string `json:"host"`
-		Port      int    `json:"port"`
-		User      string `json:"user"`
-		Password  string `json:"password"`
-		SocksPort int    `json:"socksPort"`
-		Edit      bool   `json:"edit"`
+		Name          string `json:"name"`
+		Host          string `json:"host"`
+		Port          int    `json:"port"`
+		User          string `json:"user"`
+		Password      string `json:"password"`
+		HostKeySHA256 string `json:"hostKeySHA256"`
+		SocksPort     int    `json:"socksPort"`
+		Edit          bool   `json:"edit"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "could not read the request: "+err.Error(), http.StatusBadRequest)
@@ -167,9 +168,9 @@ func (s *server) handleSSHClientCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	var err error
 	if req.Edit {
-		err = manage.UpdateSSHClient(req.Name, req.Host, req.Port, req.User, req.Password, "127.0.0.1", req.SocksPort)
+		err = manage.UpdateSSHClient(req.Name, req.Host, req.Port, req.User, req.Password, "127.0.0.1", req.SocksPort, req.HostKeySHA256)
 	} else {
-		err = manage.CreateSSHClient(req.Name, req.Host, req.Port, req.User, req.Password, "127.0.0.1", req.SocksPort)
+		err = manage.CreateSSHClient(req.Name, req.Host, req.Port, req.User, req.Password, "127.0.0.1", req.SocksPort, req.HostKeySHA256)
 	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

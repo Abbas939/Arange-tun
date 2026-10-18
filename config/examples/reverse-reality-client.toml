@@ -1,0 +1,14 @@
+# Reverse: server runs on Iran, client runs abroad.
+[client]
+remote_addr = "127.0.0.1:19090"
+transport = "tcp"
+token = "REPLACE_WITH_THE_SAME_RANDOM_64_CHARACTER_TOKEN_ON_BOTH_SERVERS"
+
+[client.xray]
+binary = "/usr/local/lib/arange-tun/xray"
+mode = "reality"
+server = "IRAN_IP:443"
+uuid = "REPLACE_WITH_THE_SAME_RANDOM_UUID"
+server_name = "tunnel.example.com"
+short_id = "REPLACE_WITH_16_HEX_CHARACTERS"
+public_key = "REPLACE_WITH_SERVER_X25519_PUBLIC_KEY"

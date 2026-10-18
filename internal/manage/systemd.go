@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/mahdi-byte64/arange-tun/internal/app"
 )
@@ -118,6 +117,9 @@ func DisableService(service string) error {
 // writeUnit writes a systemd unit file for a tunnel that runs the arange-tun
 // binary in engine mode against its config.
 func writeUnit(name string) error {
+	if !validName(name) {
+		return fmt.Errorf("invalid tunnel name")
+	}
 	unit := fmt.Sprintf(`[Unit]
 Description=Arange-tun Tunnel (%s)
 After=network.target
@@ -149,7 +151,7 @@ func FollowLog(service string) error {
 	cmd := exec.Command("journalctl", "-u", service, "-n", "200", "-f", "--no-pager")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	logProcessGroup(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return err

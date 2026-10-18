@@ -10,7 +10,11 @@ package network
 // than standing out as high-entropy noise, which is what some DPI systems key
 // on.
 //
-// The certificate is self-signed and not verified: the tunnel authenticates with
+// A mutually authenticated Noise session runs INSIDE TLS. This protects the
+// payload even when an active intermediary terminates two distinct TLS sessions.
+// Both endpoints must be upgraded together; legacy TLS-only peers fail closed.
+// The certificate may be self-signed and is not used as the trust anchor:
+// Previously: the tunnel authenticates with
 // its token inside the session, exactly as the wss path does. That self-signed
 // certificate is the one tell that separates this from genuine HTTPS — the
 // stronger REALITY mode (which borrows a real site's certificate) is the answer
@@ -81,7 +85,7 @@ func SelfSignedTLSConfig() (*tls.Config, error) {
 // presents as ordinary HTTPS. cfg is built once by the caller — a self-signed
 // config, or a Let's Encrypt one (ServerTLSConfig) so the certificate is real
 // and the self-signed tell is gone.
-func TLSServerConn(raw net.Conn, cfg *tls.Config, timeout time.Duration) (net.Conn, error) {
+func TLSServerConn(raw net.Conn, cfg *tls.Config, timeout time.Duration, token string) (net.Conn, error) {
 	tconn := tls.Server(raw, cfg)
 	ctx := context.Background()
 	if timeout > 0 {
@@ -93,19 +97,29 @@ func TLSServerConn(raw net.Conn, cfg *tls.Config, timeout time.Duration) (net.Co
 		raw.Close()
 		return nil, err
 	}
-	return tconn, nil
+	secured, err := NoiseServerConn(tconn, token, timeout)
+	if err != nil {
+		tconn.Close()
+		return nil, err
+	}
+	return secured, nil
 }
 
 // TLSClientConn wraps raw in a uTLS client session whose ClientHello mimics a
 // current Chrome build, presenting serverName as the SNI (empty for a bare IP,
 // like a browser). The certificate is not verified — the token authenticates the
 // tunnel.
-func TLSClientConn(raw net.Conn, serverName string, timeout time.Duration) (net.Conn, error) {
+func TLSClientConn(raw net.Conn, serverName string, timeout time.Duration, token string) (net.Conn, error) {
 	uconn, err := uTLSClientConn(context.Background(), raw, serverName, timeout)
 	if err != nil {
 		return nil, err
 	}
-	return uconn, nil
+	secured, err := NoiseClientConn(uconn, token, timeout)
+	if err != nil {
+		uconn.Close()
+		return nil, err
+	}
+	return secured, nil
 }
 
 // SNIFromAddr picks a default SNI from a host:port address: the hostname, or

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mahdi-byte64/arange-tun/internal/app"
+	"github.com/mahdi-byte64/arange-tun/internal/safearchive"
 	"github.com/mahdi-byte64/arange-tun/internal/schedule"
 )
 
@@ -159,6 +160,13 @@ func BackupToFile(dir string) (string, error) {
 // that lives in the webui package to avoid an import cycle.
 func Restore(r io.Reader) (RestoreResult, error) {
 	var res RestoreResult
+	staged, err := safearchive.Stage(r)
+	if err != nil {
+		return res, fmt.Errorf("backup validation: %w", err)
+	}
+	defer os.Remove(staged.Name())
+	defer staged.Close()
+	r = staged
 
 	gz, err := gzip.NewReader(r)
 	if err != nil {
@@ -206,6 +214,15 @@ func Restore(r io.Reader) (RestoreResult, error) {
 			continue
 		}
 		target := filepath.Join(app.ConfigDir, clean)
+		// Refuse pre-existing symlinks in every component, including the leaf.
+		for part := target; ; part = filepath.Dir(part) {
+			if st, err := os.Lstat(part); err == nil && st.Mode()&os.ModeSymlink != 0 {
+				return res, fmt.Errorf("refusing symlink restore target: %s", part)
+			}
+			if part == app.ConfigDir {
+				break
+			}
+		}
 		if rel, err := filepath.Rel(app.ConfigDir, target); err != nil || strings.HasPrefix(rel, "..") {
 			return res, fmt.Errorf("refusing unsafe path in archive: %q", hdr.Name)
 		}
@@ -223,15 +240,13 @@ func Restore(r io.Reader) (RestoreResult, error) {
 			if mode == 0 {
 				mode = 0600
 			}
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+			data, err := io.ReadAll(tr)
 			if err != nil {
 				return res, err
 			}
-			if _, err := io.Copy(f, tr); err != nil {
-				f.Close()
+			if err := app.WriteFileAtomic(target, data, mode&0600); err != nil {
 				return res, err
 			}
-			f.Close()
 			res.Files++
 
 			base := filepath.Base(target)

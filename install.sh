@@ -20,13 +20,14 @@ info() { echo -e "${WHITE}[*]${NC} $*"; }
 warn() { echo -e "${GRAY}[!]${NC} $*"; }
 err()  { echo -e "${RED}[x]${NC} $*" >&2; }
 
-REPO="mahdi-byte64/Arange-tun"
+REPO="Abbas939/Arange-tun"
 BRANCH="main"
+SOURCE_COMMIT=""
 BIN_PATH="/usr/local/bin/arange-tun"
 INSTALL_DIR="/root/Arange-tun"
-GO_VERSION="1.24.5"
-GO_MIN_MINOR=24
-GO_MIN_PATCH=4   # go.mod requires go >= 1.24.4
+GO_VERSION="1.27.2"
+GO_MIN_MINOR=27
+GO_MIN_PATCH=2   # go.mod requires go >= 1.27.2
 
 # Official SHA256 of the Go toolchain archive for GO_VERSION, per architecture,
 # from https://go.dev/dl/. These ship inside this script — which arrives over
@@ -38,8 +39,8 @@ GO_MIN_PATCH=4   # go.mod requires go >= 1.24.4
 # moves; a stale value here fails closed with a checksum mismatch, which is safe
 # but blocks the install until it is corrected.
 declare -A GO_SHA256_PINNED=(
-  [amd64]="10ad9e86233e74c0f6590fe5426895de6bf388964210eac34a6d83f38918ecdc"
-  [arm64]="0df02e6aeb3d3c06c95ff201d575907c736d6c62cfa4b6934c11203f1d600ffa"
+  [amd64]="ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5"
+  [arm64]="94f3e30b8e374bc285e7dadc11e0865726b9bc6e85b841ccceaabc0214c6b7c8"
 )
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-/tmp}")" 2>/dev/null && pwd || echo /tmp)"
 
@@ -273,7 +274,12 @@ build_from_source() {
 }
 
 fetch_source() {
-  local url="https://github.com/${REPO}/archive/refs/heads/${BRANCH}.tar.gz"
+  local commit_json sha_regex='"sha"[[:space:]]*:[[:space:]]*"([0-9a-f]{40})"'
+  commit_json="$(curl -fsSL --connect-timeout 15 "https://api.github.com/repos/${REPO}/commits/${BRANCH}")"
+  [[ "$commit_json" =~ $sha_regex ]] || { err "Cannot resolve the source commit."; exit 1; }
+  SOURCE_COMMIT="${BASH_REMATCH[1]}"
+  [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { err "Cannot resolve the source commit."; exit 1; }
+  local url="https://github.com/${REPO}/archive/${SOURCE_COMMIT}.tar.gz"
   local tarball="$INSTALL_DIR/source.tar.gz"
   info "Downloading source from ${REPO}@${BRANCH}..."
   fetch "$url" "$tarball" || {
@@ -290,6 +296,9 @@ fetch_source() {
 
 if [[ -f "$SCRIPT_DIR/go.mod" && -f "$SCRIPT_DIR/main.go" ]]; then
   info "Building from the local source checkout."
+  SOURCE_COMMIT="$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || true)"
+  # A dirty checkout is not identical to HEAD and must not be recorded as such.
+  if [[ -n "$SOURCE_COMMIT" ]] && [[ -n "$(git -C "$SCRIPT_DIR" status --porcelain)" ]]; then SOURCE_COMMIT=""; fi
   build_from_source
 else
   fetch_source
@@ -300,9 +309,11 @@ info "Built and installed -> ${BIN_PATH}"
 # Record the commit just built, so the panel's update check can tell a later
 # push apart from "nothing changed". Best-effort — a miss only means the first
 # check offers a rebuild it did not strictly need.
-sha="$(curl -fsSL --connect-timeout 15 "https://api.github.com/repos/${REPO}/commits/${BRANCH}" 2>/dev/null \
-  | grep -oE '"sha"[[:space:]]*:[[:space:]]*"[0-9a-f]{7,40}"' | head -1 | grep -oE '[0-9a-f]{7,40}' | head -1)"
-[ -n "$sha" ] && echo "$sha" > /etc/arange-tun/installed_commit || true
+if [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "$SOURCE_COMMIT" > /etc/arange-tun/installed_commit
+else
+  rm -f /etc/arange-tun/installed_commit
+fi
 
 chmod +x "$BIN_PATH"
 echo

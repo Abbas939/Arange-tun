@@ -244,7 +244,7 @@ func (s *server) handleControl(ctx context.Context, conn net.Conn) {
 		}
 		conn = wrapped
 	case "tls":
-		wrapped, err := network.TLSServerConn(conn, s.tlsCfg, handshakeTimeout)
+		wrapped, err := network.TLSServerConn(conn, s.tlsCfg, handshakeTimeout, string(s.token))
 		if err != nil {
 			conn.Close()
 			return
@@ -561,7 +561,7 @@ func dialAndServe(ctx context.Context, cfg *config.ClientConfig, logger *logrus.
 		if sni == "" {
 			sni = network.SNIFromAddr(cfg.RemoteAddr)
 		}
-		wrapped, werr := network.TLSClientConn(conn, sni, handshakeTimeout)
+		wrapped, werr := network.TLSClientConn(conn, sni, handshakeTimeout, cfg.Token)
 		if werr != nil {
 			conn.Close()
 			return fmt.Errorf("obfuscation handshake failed: %w", werr)

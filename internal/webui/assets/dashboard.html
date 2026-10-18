@@ -782,6 +782,11 @@
   [dir="rtl"] .hm b,[dir="rtl"] .waddr,[dir="rtl"] .logbox,[dir="rtl"] code,
   [dir="rtl"] .updbar b,[dir="rtl"] #rtok{direction:ltr;text-align:left;unicode-bidi:plaintext}
   [dir="rtl"] .logfilter{text-align:right}
+  [dir="rtl"] input:not([type="checkbox"]):not([type="radio"]),
+  [dir="rtl"] textarea {direction:ltr;text-align:left;unicode-bidi:plaintext}
+  [dir="rtl"] label,[dir="rtl"] .hint,[dir="rtl"] .msg {text-align:right}
+  bdi {unicode-bidi:isolate}
+
 
   /* ---------- narrow screens ----------
      There were no breakpoints at all before this: the layout held together only
@@ -1640,6 +1645,8 @@
     <label for="ssh-user" data-i18n>Username</label>
     <input id="ssh-user" type="text" autocomplete="off" spellcheck="false" placeholder="root">
 
+    <label for="ssh-hostkey">اثر انگشت معتبر کلید سرور (SHA256)</label>
+    <input id="ssh-hostkey" dir="ltr" autocomplete="off" placeholder="SHA256:...">
     <label for="ssh-pass" data-i18n>Password</label>
     <input id="ssh-pass" type="password" autocomplete="new-password" spellcheck="false" placeholder="">
 
@@ -1732,9 +1739,24 @@
   </div>
 </div>
 
+
+<div class="modal" id="advancedtun" onclick="if(event.target===this)this.classList.remove('on')">
+ <div class="box" role="dialog" aria-modal="true" aria-labelledby="advancedtitle" dir="rtl" style="width:min(94vw,700px)">
+  <h3 id="advancedtitle">تنظیمات پیشرفتهٔ تونل مستقیم و ریورس</h3>
+  <p>تنظیمات نمونه را از راهنمای روش‌های جدید بردارید. ابزارهای کمکی باید از قبل نصب و بررسی شده باشند. تنظیمات شامل رمز است؛ آن را محرمانه نگه دارید.</p>
+  <label for="advancedname">نام تونل</label><input id="advancedname" dir="ltr" autocomplete="off">
+  <label for="advancedconfig">پیکربندی</label><textarea id="advancedconfig" dir="ltr" spellcheck="false" style="width:100%;min-height:280px;font-family:monospace;text-align:left;unicode-bidi:plaintext"></textarea>
+  <label><input id="advancedreplace" type="checkbox"> ویرایش تونل موجود با گرفتن نسخهٔ پشتیبان</label>
+  <p id="advancedmsg" role="status" style="white-space:pre-wrap;unicode-bidi:plaintext"></p>
+  <button class="btn-primary" id="advancedsubmit" onclick="submitAdvanced()">اعتبارسنجی و اعمال</button>
+  <button class="btn-ghost" onclick="$('advancedtun').classList.remove('on')">بستن</button>
+ </div>
+</div>
+
 <div class="modal" id="newtun" onclick="if(event.target===this)closeNewTunnel()">
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="nttitle" style="width:min(94vw,460px)">
     <h3 id="nttitle" data-i18n>New tunnel</h3>
+<button class="btn-ghost" onclick="closeNewTunnel();$('advancedtun').classList.add('on')">پیکربندی روش‌های جدید و تونل مستقیم</button>
     <p data-i18n>Build a tunnel the same way the CLI does — it is written, enabled and started right away.</p>
 
     <label data-i18n>Which side of the tunnel is this machine?</label>
@@ -2583,7 +2605,7 @@ const FA={
   "frp / Backhaul tunnels":"تانل‌های frp / Backhaul",
   "Creating… (installing the binary may take a moment)":"در حال ساخت… (نصب باینری کمی طول می‌کشد)",
 };
-let LANG=localStorage.getItem('bp_lang')==='fa'?'fa':'en';
+let LANG=localStorage.getItem('bp_lang')==='en'?'en':'fa';
 
 // T translates a string, falling back to the original when there is no entry.
 function T(s){ return (LANG==='fa'&&FA[s])||s; }
@@ -3646,7 +3668,7 @@ function openSSH(){
   sshMsg('');
   sshEditMode='';
   $('ssh-submit').disabled=false; $('ssh-submit').textContent=T('Create tunnel');
-  ['ssh-name','ssh-host','ssh-port','ssh-user','ssh-pass','ssh-socksport'].forEach(id=>{ if($(id)) $(id).value=''; });
+  ['ssh-name','ssh-host','ssh-port','ssh-user','ssh-hostkey','ssh-pass','ssh-socksport'].forEach(id=>{ if($(id)) $(id).value=''; });
   $('ssh-name').readOnly=false;
   $('ssh-pass').placeholder='';
   $('sshtun').classList.add('on');
@@ -3669,10 +3691,19 @@ async function openSSHEdit(name){
   $('ssh-user').value=d.user||'';
   $('ssh-socksport').value=d.socksPort||'';
   $('ssh-pass').placeholder=T('leave blank to keep the current password');
+  $('ssh-hostkey').value=d.hostKeySHA256||'';
   $('sshtun').classList.add('on');
 }
 function closeSSH(){ $('sshtun').classList.remove('on'); }
 function sshMsg(text,isErr){ const m=$('ssh-msg'); m.textContent=text||''; m.className='msg'+(text?(isErr?' err':' ok'):''); }
+
+async function submitAdvanced(){
+ const btn=$('advancedsubmit');btn.disabled=true;$('advancedmsg').textContent='در حال بررسی…';
+ try{const r=await fetch('/api/tunnels/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('advancedname').value.trim(),config:$('advancedconfig').value,replace:$('advancedreplace').checked})});
+ if(!r.ok)throw new Error(await r.text());$('advancedmsg').textContent='تنظیمات ثبت شد.';
+ }catch(e){$('advancedmsg').textContent=e.message;}finally{btn.disabled=false;}
+}
+
 async function submitSSH(){
   const name=$('ssh-name').value.trim();
   if(!name){ sshMsg(T('A tunnel name is required.'),true); return; }
@@ -3680,7 +3711,7 @@ async function submitSSH(){
   const btn=$('ssh-submit'); btn.disabled=true; sshMsg(editing?T('Saving…'):T('Creating…'));
   try{
     const req={name, host:$('ssh-host').value.trim(), port:parseInt($('ssh-port').value,10)||0,
-      user:$('ssh-user').value.trim(), password:$('ssh-pass').value,
+      user:$('ssh-user').value.trim(), password:$('ssh-pass').value, hostKeySHA256:$('ssh-hostkey').value.trim(),
       socksPort:parseInt($('ssh-socksport').value,10)||0, edit:editing};
     const r=await fetch('/api/ssh/client',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(req)});
     if(!r.ok){ sshMsg((await r.text())||('HTTP '+r.status),true); btn.disabled=false; return; }

@@ -156,6 +156,7 @@ func (s *TcpTransport) Restart() {
 	defer s.restartMutex.Unlock()
 
 	s.logger.Info("restarting server...")
+	metrics.ClearPeer()
 
 	// for removing timeout logs
 	level := s.logger.Level
@@ -222,6 +223,7 @@ func (s *TcpTransport) channelHandshake(g *tcpGen) {
 		// would be checked against a nonce that is not there yet.
 		s.poolNonce.Set(candidate.nonce)
 		s.controlChannel.Set(candidate.conn)
+		metrics.ReportPeer(candidate.conn.RemoteAddr().String())
 
 		if candidate.nonce == "" {
 			s.logger.Warn(legacyPoolWarning)

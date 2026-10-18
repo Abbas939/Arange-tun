@@ -1,6 +1,3 @@
-//go:build !windows
-// +build !windows
-
 package network
 
 import (
@@ -29,7 +26,7 @@ func ListenWithBuffers(network, address string, rcvBufSize, sndBufSize, mss int,
 			// the window. See PinTCPBuffers.
 			if PinTCPBuffers() && rcvBufSize > 0 {
 				err = s.Control(func(fd uintptr) {
-					if err = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, rcvBufSize); err != nil {
+					if err = socketInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, rcvBufSize); err != nil {
 						err = fmt.Errorf("failed to set SO_RCVBUF: %v", err)
 					}
 				})
@@ -41,7 +38,7 @@ func ListenWithBuffers(network, address string, rcvBufSize, sndBufSize, mss int,
 			// Set SO_SNDBUF
 			if PinTCPBuffers() && sndBufSize > 0 {
 				err = s.Control(func(fd uintptr) {
-					if err = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, sndBufSize); err != nil {
+					if err = socketInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, sndBufSize); err != nil {
 						err = fmt.Errorf("failed to set SO_SNDBUF: %v", err)
 					}
 				})
@@ -56,7 +53,7 @@ func ListenWithBuffers(network, address string, rcvBufSize, sndBufSize, mss int,
 			// Set MSS (Maximum Segment Size)
 			if mss > 0 {
 				err = s.Control(func(fd uintptr) {
-					if err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_MAXSEG, mss); err != nil {
+					if err = socketMSS(fd, mss); err != nil {
 						err = fmt.Errorf("failed to set MSS: %v", err)
 					}
 				})
@@ -65,13 +62,13 @@ func ListenWithBuffers(network, address string, rcvBufSize, sndBufSize, mss int,
 			// Set TCP_NODELAY based on tcpNoDelay flag (enabled or disabled)
 			if !dis_nodelay {
 				err = s.Control(func(fd uintptr) {
-					if err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1); err != nil {
+					if err = socketInt(fd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1); err != nil {
 						err = fmt.Errorf("failed to set TCP_NODELAY: %v", err)
 					}
 				})
 			} else {
 				err = s.Control(func(fd uintptr) {
-					if err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 0); err != nil {
+					if err = socketInt(fd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 0); err != nil {
 						err = fmt.Errorf("failed to unset TCP_NODELAY: %v", err)
 					}
 				})

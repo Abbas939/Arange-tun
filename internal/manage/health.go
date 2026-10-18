@@ -1,6 +1,7 @@
 package manage
 
 import (
+	"strings"
 	"time"
 
 	"github.com/mahdi-byte64/arange-tun/internal/app"
@@ -107,12 +108,14 @@ func tunnelHealthWith(t Tunnel, pairs [][2]string, active map[string]bool) Healt
 			h.Connected = true
 			h.State, h.Detail = "online", "running"
 		}
-	case t.Transport == "ssh":
-		// SSH is a VPN egress; its liveness is the SSH connection the engine
-		// holds, not an observable reverse-tunnel socket, so a running service
-		// reports online.
-		h.Connected = true
-		h.State, h.Detail = "online", "running"
+	case t.Transport == "ssh" || strings.HasPrefix(t.Transport, "direct-") || strings.HasPrefix(t.Transport, "managed-"):
+		connected, known := reportedPeer(app.ConfigDir, t.Name)
+		h.Connected = known && connected
+		if h.Connected {
+			h.State, h.Detail = "online", "authenticated peer connected"
+		} else {
+			h.State, h.Detail = "offline", "waiting for an authenticated peer"
+		}
 	case t.Transport == "hedioum":
 		// Hedioum is a two-node pool proxy. The iran hub keeps a warm pool of
 		// pipes to the foreign node and writes the live count into the metrics

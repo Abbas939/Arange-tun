@@ -77,6 +77,7 @@ func fileFingerprint(path string) (fingerprint, error) {
 // running from: the transports write their status back into their own copy, so
 // a running configuration always differs from the file it came from.
 func awaitConfigChange(ctx context.Context, path string, current *config.Config) *config.Config {
+	lastTLS := certificateFingerprints(current)
 	last, err := fileFingerprint(path)
 	if err != nil {
 		// The file was readable moments ago, when it was loaded. If it is not
@@ -98,10 +99,13 @@ func awaitConfigChange(ctx context.Context, path string, current *config.Config)
 		}
 
 		fp, err := fileFingerprint(path)
-		if err != nil || fp == last {
+		tlsFiles := certificateFingerprints(current)
+		certificatesChanged := !reflect.DeepEqual(lastTLS, tlsFiles)
+		if err != nil || (fp == last && !certificatesChanged) {
 			continue
 		}
 		last = fp
+		lastTLS = tlsFiles
 
 		next, err := loadConfig(path)
 		if err != nil {
@@ -113,12 +117,29 @@ func awaitConfigChange(ctx context.Context, path string, current *config.Config)
 		}
 		applyDefaults(next)
 
-		if reflect.DeepEqual(current, next) {
+		if reflect.DeepEqual(current, next) && !certificatesChanged {
 			logger.Debug("the configuration file changed but means the same thing; leaving the tunnel alone")
 			continue
 		}
 		return next
 	}
+}
+
+// Managed helpers freeze validated certificate bytes for one generation. A
+// valid renewal must start a new generation even when the TOML is unchanged.
+// Invalid replacements are refused by loadConfig and leave the old helper up.
+func certificateFingerprints(cfg *config.Config) map[string]fingerprint {
+	files := []string{cfg.Server.Naive.Certificate, cfg.Server.Naive.Key, cfg.Client.Naive.CAFile,
+		cfg.Server.Xray.Certificate, cfg.Server.Xray.Key, cfg.Client.Xray.CAFile}
+	out := map[string]fingerprint{}
+	for _, path := range files {
+		if path != "" {
+			if fp, err := fileFingerprint(path); err == nil {
+				out[path] = fp
+			}
+		}
+	}
+	return out
 }
 
 // waitForPorts waits until every address given can be bound, so the tunnel
@@ -159,6 +180,18 @@ func waitForPorts(ctx context.Context, addrs []string) {
 // server that actually needs waiting for.
 func portsInUse(cfg *config.Config) []string {
 	var addrs []string
+	if cfg.Direct.Enabled() {
+		if cfg.Direct.ResolvedRole() == "origin" {
+			addrs = append(addrs, cfg.Direct.Addr)
+		}
+		return addrs
+	}
+	if cfg.Server.Naive.Enabled() {
+		addrs = append(addrs, cfg.Server.Naive.Listen)
+	}
+	if cfg.Server.Xray.Enabled() {
+		addrs = append(addrs, cfg.Server.Xray.Listen)
+	}
 	if cfg.Server.BindAddr != "" {
 		addrs = append(addrs, cfg.Server.BindAddr)
 		if cfg.Server.WebPort > 0 {

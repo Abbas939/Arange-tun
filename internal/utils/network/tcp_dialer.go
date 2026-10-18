@@ -126,7 +126,7 @@ func attemptTcpDialer(
 
 			if PinTCPBuffers() && SO_RCVBUF > 0 {
 				err = s.Control(func(fd uintptr) {
-					if err = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, SO_RCVBUF); err != nil {
+					if err = socketInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, SO_RCVBUF); err != nil {
 						err = fmt.Errorf("failed to set SO_RCVBUF: %v", err)
 					}
 				})
@@ -137,7 +137,7 @@ func attemptTcpDialer(
 
 			if PinTCPBuffers() && SO_SNDBUF > 0 {
 				err = s.Control(func(fd uintptr) {
-					if err = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, SO_SNDBUF); err != nil {
+					if err = socketInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, SO_SNDBUF); err != nil {
 						err = fmt.Errorf("failed to set SO_SNDBUF: %v", err)
 					}
 				})
@@ -153,7 +153,7 @@ func attemptTcpDialer(
 			// Set MSS (Maximum Segment Size)
 			if mss > 0 {
 				err = s.Control(func(fd uintptr) {
-					if err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_MAXSEG, mss); err != nil {
+					if err = socketMSS(fd, mss); err != nil {
 						err = fmt.Errorf("failed to set MSS: %v", err)
 					}
 				})

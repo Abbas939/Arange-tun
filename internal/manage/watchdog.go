@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mahdi-byte64/arange-tun/internal/alerthist"
+	"github.com/mahdi-byte64/arange-tun/internal/app"
 )
 
 // Watchdog tuning.
@@ -78,8 +79,9 @@ func tunnelHealthy(t Tunnel, pairs [][2]string) bool {
 	// whose liveness is the SSH connection the engine holds — neither has a
 	// kernel socket to observe, so a running service is treated as healthy (as
 	// with WireGuard) rather than restarted on a check that can never succeed.
-	if t.Transport == "packet" || t.Transport == "ssh" || t.Transport == "hedioum" {
-		return true
+	if t.Transport == "packet" || t.Transport == "ssh" || t.Transport == "hedioum" || strings.HasPrefix(t.Transport, "direct-") || strings.HasPrefix(t.Transport, "managed-") {
+		connected, known := reportedPeer(app.ConfigDir, t.Name)
+		return !known || connected // do not restart before the first usable snapshot
 	}
 
 	// UDP-based transports (udp, kcp) hold no TCP sockets at all, so the TCP
@@ -93,7 +95,8 @@ func tunnelHealthy(t Tunnel, pairs [][2]string) bool {
 	// cannot succeed.
 	if isDatagram(t.Transport) {
 		if t.Role == "server" {
-			return true
+			connected, known := reportedPeer(app.ConfigDir, t.Name)
+			return !known || connected
 		}
 		pairs = establishedUDPPairs()
 	}

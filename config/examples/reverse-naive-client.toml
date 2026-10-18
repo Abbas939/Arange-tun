@@ -1,0 +1,11 @@
+[client]
+remote_addr = "127.0.0.1:19090"
+transport = "tcp"
+token = "REPLACE_WITH_THE_SAME_RANDOM_64_CHARACTER_TOKEN_ON_BOTH_SERVERS"
+
+[client.naive]
+binary = "/usr/local/lib/arange-tun/naive"
+server = "tunnel.example.com:443"
+username = "REPLACE_WITH_PROXY_USERNAME"
+password = "REPLACE_WITH_RANDOM_PROXY_PASSWORD"
+# Optional private CA: ca_file = "/etc/arange-tun/trusted-ca.pem"

@@ -1,0 +1,9 @@
+# Iran initiates the connection; the origin holds the real service.
+[direct]
+role = "iran"
+addr = "KHAREJ_IP:8443"
+token = "REPLACE_WITH_THE_SAME_RANDOM_64_CHARACTER_TOKEN_ON_BOTH_SERVERS"
+transport = "stealth"
+ports = ["127.0.0.1:8080=127.0.0.1:80"]
+sessions = 2
+max_connections = 256

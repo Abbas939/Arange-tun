@@ -269,6 +269,11 @@ func pickTag(body string, beta bool) string {
 // can never leave the server without working tunnels. There are no release
 // binaries; the update always compiles from source (see buildFromSource).
 func ApplyUpdate(logf func(string)) error {
+	unlock, err := lockUpdate()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if logf == nil {
 		logf = func(string) {}
 	}

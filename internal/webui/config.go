@@ -107,8 +107,11 @@ func Save(c Config) error {
 // if none exists yet.
 func EnsurePassword() (Config, error) {
 	c := Load()
+	if _, err := os.Stat(app.WebUIConfig); os.IsNotExist(err) {
+		c.HTTPS = true
+	}
 	if c.Password == "" {
-		c.Password = randomDigits(8)
+		c.Password = randomHex(16)
 		if err := Save(c); err != nil {
 			return c, err
 		}
@@ -119,7 +122,7 @@ func EnsurePassword() (Config, error) {
 // RegeneratePassword creates a new 8-digit password and restarts the panel.
 func RegeneratePassword() (Config, error) {
 	c := Load()
-	c.Password = randomDigits(8)
+	c.Password = randomHex(16)
 	if err := Save(c); err != nil {
 		return c, err
 	}

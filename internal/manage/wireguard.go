@@ -169,10 +169,13 @@ func UpdateWireGuardClient(name, wgConfigText, socksBind string, socksPort int) 
 // saveGeneratedTunnel writes the config and unit and starts the service, the same way
 // TunnelSpec.Save does for the reverse tunnels.
 func saveGeneratedTunnel(name, tomlText string) (string, error) {
+	if !validName(name) {
+		return "", fmt.Errorf("invalid tunnel name")
+	}
 	if err := os.MkdirAll(app.ConfigDir, 0755); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(app.ConfigPath(name), []byte(tomlText), 0644); err != nil {
+	if err := app.WriteFileAtomic(app.ConfigPath(name), []byte(tomlText), 0600); err != nil {
 		return "", err
 	}
 	if err := writeUnit(name); err != nil {
